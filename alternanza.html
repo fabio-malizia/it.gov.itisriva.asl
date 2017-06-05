@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Drive API Quickstart</title>
+    <meta charset='utf-8' />
+  </head>
+  <body>
+    <p>Drive API Quickstart</p>
+
+    <!--Add buttons to initiate auth sequence and sign out-->
+    <button id="authorize-button" style="display: none;">Authorize</button>
+    <button id="signout-button" style="display: none;">Sign Out</button>
+    <button id="copy-file" style="display: none;">Genera file</button>
+
+    <pre id="content"></pre>
+
+    <script type="text/javascript">
+      // Client ID and API key from the Developer Console
+      var CLIENT_ID = '948438566026-t1l8noj0ld61278en99lkjq907405e1n.apps.googleusercontent.com';
+
+      // Array of API discovery doc URLs for APIs used by the quickstart
+      var DISCOVERY_DOCS = ["https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"];
+
+      // Authorization scopes required by the API; multiple scopes can be
+      // included, separated by spaces.
+      var SCOPES = 'https://www.googleapis.com/auth/drive';
+
+      var ID_FILE_ASSOCIAZIONI = '1AZucgzbIk2ODHWDZ6BvCCvhDIfHkhBeIqNt-0RYuCh4';
+      var TITOLO_FILE_ASSOCIAZIONI = 'ASSOCIAZIONI_INDIRIZZO_GENERICO';
+      var ASL_FOLDER_NAME="#ITIS-RIVA-MODULISTICA_ASL#";
+
+      var authorizeButton = document.getElementById('authorize-button');
+      var signoutButton = document.getElementById('signout-button');
+      var copyFileButton = document.getElementById('copy-file');
+
+      var folderId = 'root';
+
+      /**
+       *  On load, called to load the auth2 library and API client library.
+       */
+      function handleClientLoad() {
+        gapi.load('client:auth2', initClient);
+      }
+
+      /**
+       *  Initializes the API client library and sets up sign-in state
+       *  listeners.
+       */
+      function initClient() {
+        gapi.client.init({
+          discoveryDocs: DISCOVERY_DOCS,
+          clientId: CLIENT_ID,
+          scope: SCOPES
+        }).then(function () {
+          // Listen for sign-in state changes.
+          gapi.auth2.getAuthInstance().isSignedIn.listen(updateSigninStatus);
+
+          // Handle the initial sign-in state.
+          updateSigninStatus(gapi.auth2.getAuthInstance().isSignedIn.get());
+          authorizeButton.onclick = handleAuthClick;
+          signoutButton.onclick = handleSignoutClick;
+          copyFileButton.onclick= handleCopyFileClick;
+        });
+      }
+
+      /**
+       *  Called when the signed in status changes, to update the UI
+       *  appropriately. After a sign-in, the API is called.
+       */
+      function updateSigninStatus(isSignedIn) {
+        if (isSignedIn) {
+          authorizeButton.style.display = 'none';
+          signoutButton.style.display = 'block';
+          copyFileButton.style.display = 'block';
+        } else {
+          authorizeButton.style.display = 'block';
+          signoutButton.style.display = 'none';
+          copyFileButton.style.display = 'none';
+        }
+      }
+
+      /**
+       *  Sign in the user upon button click.
+       */
+      function handleAuthClick(event) {
+        gapi.auth2.getAuthInstance().signIn();
+      }
+
+      /**
+       *  Sign out the user upon button click.
+       */
+      function handleSignoutClick(event) {
+        gapi.auth2.getAuthInstance().signOut();
+      }
+
+       /**
+       *  Sign out the user upon button click.
+       */
+      function handleCopyFileClick(event) {
+        createAssociationFile();
+      }
+
+      /**
+       * Append a pre element to the body containing the given message
+       * as its text node. Used to display the results of the API call.
+       *
+       * @param {string} message Text to be placed in pre element.
+       */
+      function appendPre(message) {
+        var pre = document.getElementById('content');
+        var textContent = document.createTextNode(message + '\n');
+        pre.appendChild(textContent);
+      }
+
+      /**
+       * Print files.
+       */
+      function listFiles() {
+
+        var query = "name='" + ASL_FOLDER_NAME + "'";
+        gapi.client.drive.files.list({
+          'pageSize': 10,
+          'fields': "nextPageToken, files(id, name)",
+          'q' : query
+        }).then(function(response) {
+          appendPre('Files:');
+          var files = response.result.files;
+          if (files && files.length > 0) {
+            for (var i = 0; i < files.length; i++) {
+              var file = files[i];
+              appendPre(file.name + ' (' + file.id + ')');
+            }
+          } else {
+            appendPre('No files found.');
+          }
+        });
+      }
+
+      function createAssociationFile()
+      {
+        folderId = 'root';
+        var query = "name='" + ASL_FOLDER_NAME + "'";
+        gapi.client.drive.files.list({
+          'pageSize': 10,
+          'fields': "nextPageToken, files(id, name)",
+          'q' : query
+        }).then(
+          function(response) {
+            var files = response.result.files;
+            if (files && files.length > 0) {
+              folderId = files[0].id;
+              console.log(folderId + ": folder found");
+            }
+            else {
+              console.log(folderId + ": rootFolder");
+              createFolder();
+            }
+            copyFile(ID_FILE_ASSOCIAZIONI, TITOLO_FILE_ASSOCIAZIONI, folderId)
+          });
+
+        }
+
+
+      function createFolder(){
+        //var rootFolderId = resp.rootFolderId;
+        data = new Object();
+        data.name = ASL_FOLDER_NAME;
+        data.parents = [{"id":'root'}];
+        data.mimeType = "application/vnd.google-apps.folder";
+        gapi.client.drive.files.create({'resource': data}).execute(function(resp){folderId = resp.id});
+      }
+
+      function copyFile(originFileId, copyTitle, parentFolderId) {
+        var body = {'title': copyTitle};
+        var request = gapi.client.drive.files.copy({
+          'fileId': originFileId,
+          'resource': body,
+          'parents': [{"id":'parentFolderId'}]
+        });
+        request.execute(function(resp) {
+          console.log(request);
+          console.log('Copy ID: ' + resp.id);
+        });
+      }
+
+      /**
+       * Remove a file from a folder.
+       *
+       * @param {String} folderId ID of the folder to remove the file from.
+       * @param {String} fileId ID of the file to remove from the folder.
+       */
+      function removeFileFromFolder(folderId, fileId) {
+        var request = gapi.client.drive.parents.delete({
+          'parentId': folderId,
+          'fileId': fileId
+        });
+        request.execute(function(resp) { });
+      }
+
+
+      /**
+       * Return a list of parents Id
+       *
+       * @param {String} fileId ID of the file to insert.
+       */
+      function getParents(fileId) {
+        var request = gapi.client.drive.parents.list({
+          'fileId': fileId
+        });
+        parents = new Array();
+        request.execute(function(resp) {
+          for (parent in resp.items) {
+            //console.log('File Id: ' + resp.items[parent].id);
+            parents.add(resp.items[parent].id);
+          }
+        });
+      }
+
+      /**
+       * Insert a file into a folder.
+       *
+       * @param {String} folderId ID of the folder to insert the file into.
+       * @param {String} fileId ID of the file to insert.
+       */
+      function insertFileIntoFolder(folderId, fileId) {
+        var body = {'id': folderId};
+        var request = gapi.client.drive.parents.insert({
+          'fileId': fileId,
+          'resource': body
+        });
+        request.execute(function(resp) { });
+      }
+
+    </script>
+
+    <script async defer src="https://apis.google.com/js/api.js"
+      onload="this.onload=function(){};handleClientLoad()"
+      onreadystatechange="if (this.readyState === 'complete') this.onload()">
+    </script>
+  </body>
+</html>
