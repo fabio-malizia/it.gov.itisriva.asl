@@ -112,6 +112,30 @@
         pre.appendChild(textContent);
       }
 
+      var DRIVE_FOLDER_LINK = "https://drive.google.com/drive/folders/";
+      var DRIVE_SPREADSHEET_LINK = "https://docs.google.com/spreadsheets/d/";
+      var GO_TO_FOLDER = "Vai alla cartella";
+      var OPEN_SPREADSHEET = "Apri il folglio di lavoro appena creato";
+      function appendLink(folderLink, text, fileId)
+      {
+        var pre = document.getElementById('content');
+        var a = document.createElement('a');
+        var linkText = document.createTextNode(text);
+        a.appendChild(linkText);
+        a.title = text;
+        a.href = folderLink+fileId;
+        a.target="_blank"
+        pre.appendChild(a);
+        var textContent = document.createTextNode('\n');
+        pre.appendChild(textContent);
+      }
+
+      function appendElement(el)
+      {
+        var pre = document.getElementById('content');
+        pre.appendChild(document.createElement(el));
+      }
+
       /**
        * Print files.
        */
@@ -138,8 +162,8 @@
 
       function createAssociationFile()
       {
-        folderId = 'root';
-        var query = "name='" + ASL_FOLDER_NAME + "'";
+        
+        var query = "trashed=false and name='" + ASL_FOLDER_NAME + "'";
         gapi.client.drive.files.list({
           'pageSize': 10,
           'fields': "nextPageToken, files(id, name)",
@@ -148,38 +172,48 @@
           function(response) {
             var files = response.result.files;
             if (files && files.length > 0) {
-              folderId = files[0].id;
-              console.log(folderId + ": folder found");
+              var folderId = files[0].id;
+              appendPre('Cartella '+ ASL_FOLDER_NAME + ' trovata; copia del file '+ TITOLO_FILE_ASSOCIAZIONI + ' in corso');
+              appendLink(DRIVE_FOLDER_LINK, GO_TO_FOLDER, folderId);
+              copyFile(ID_FILE_ASSOCIAZIONI, TITOLO_FILE_ASSOCIAZIONI, folderId)
             }
             else {
-              console.log(folderId + ": rootFolder");
-              createFolder();
-            }
-            copyFile(ID_FILE_ASSOCIAZIONI, TITOLO_FILE_ASSOCIAZIONI, folderId)
+              appendPre('Cartella '+ ASL_FOLDER_NAME + ' non trovata; creazione cartella in corso');
+              createFolderAndAddFile();
+            }            
           });
 
         }
 
 
-      function createFolder(){
+      function createFolderAndAddFile(){
         //var rootFolderId = resp.rootFolderId;
         data = new Object();
         data.name = ASL_FOLDER_NAME;
         data.parents = [{"id":'root'}];
         data.mimeType = "application/vnd.google-apps.folder";
-        gapi.client.drive.files.create({'resource': data}).execute(function(resp){folderId = resp.id});
+        gapi.client.drive.files.create({'resource': data}).execute(
+          function(resp)
+          {
+            appendPre('Cartella '+ ASL_FOLDER_NAME + ': creazione terminata; copia del file '+ TITOLO_FILE_ASSOCIAZIONI + ' in corso');
+            appendLink(DRIVE_FOLDER_LINK, GO_TO_FOLDER,resp.id);
+            copyFile(ID_FILE_ASSOCIAZIONI, TITOLO_FILE_ASSOCIAZIONI, resp.id)
+
+          });
       }
 
       function copyFile(originFileId, copyTitle, parentFolderId) {
-        var body = {'title': copyTitle};
+        var body = {'name': copyTitle};
         var request = gapi.client.drive.files.copy({
           'fileId': originFileId,
-          'resource': body,
-          'parents': [{"id":'parentFolderId'}]
+          
+          'parents': [parentFolderId],
+          'name':copyTitle
         });
         request.execute(function(resp) {
-          console.log(request);
-          console.log('Copy ID: ' + resp.id);
+          appendPre('Copia del file '+ TITOLO_FILE_ASSOCIAZIONI + ' terminata con successo');
+          appendLink(DRIVE_SPREADSHEET_LINK, OPEN_SPREADSHEET,resp.id);
+          appendElement('hr');
         });
       }
 
